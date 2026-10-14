@@ -229,11 +229,24 @@ $("assetForm").addEventListener("submit", event => {
   form.submit();
   form.remove();
 
-  message(
-    "ส่งคำขอแล้ว กรุณาตรวจสอบข้อมูลใน Google Sheets"
-  );
+message("กำลังส่งข้อมูล...");
+
+const submitButton = document.querySelector(".submit");
+submitButton.disabled = true;
+submitButton.textContent = "กำลังส่งข้อมูล...";
+
+// Clear form after 2 seconds
+setTimeout(() => {
+  $("assetForm").reset();
+  $("assetNo").value = "";
 
   sending = false;
+  submitButton.disabled = false;
+  submitButton.textContent = "ส่งข้อมูล";
+
+  message("ส่งคำขอแล้ว พร้อมสแกน QR รายการถัดไป");
+}, 2000);
+  
 });
 </script>
 </body>
