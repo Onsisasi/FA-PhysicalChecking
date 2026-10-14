@@ -1,0 +1,234 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>FA Physical Checking</title>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  font-family: Arial, sans-serif;
+  background: #f3f4f6;
+  margin: 0;
+  padding: 15px;
+}
+
+.container {
+  background: white;
+  max-width: 450px;
+  margin: auto;
+  padding: 22px;
+  border-radius: 12px;
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin: 18px 0 7px;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 13px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+input[readonly] {
+  background: #eee;
+}
+
+button {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.scan {
+  background: #333;
+  color: white;
+}
+
+.submit {
+  background: #1769aa;
+  color: white;
+  margin-top: 24px;
+}
+
+#reader { margin-top: 12px; }
+#message { margin-top: 15px; font-weight: bold; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>FA Physical Checking</h2>
+
+<button class="scan" type="button"
+        onclick="startScanner()">
+  📷 เปิดกล้อง Scan QR
+</button>
+
+<div id="reader"></div>
+
+<form id="assetForm">
+
+  <label>Asset No. *</label>
+  <input id="assetNo" readonly required
+         placeholder="กรุณาสแกน QR">
+
+  <label>Status *</label>
+  <select id="status" required>
+    <option value="">-- เลือก Status --</option>
+    <option value="Found">Found</option>
+    <option value="Not Found">Not Found</option>
+  </select>
+
+  <label>Condition *</label>
+  <select id="condition" required>
+    <option value="">-- เลือก Condition --</option>
+    <option value="Good">Good</option>
+    <option value="Damaged">Damaged</option>
+  </select>
+
+  <label>Location *</label>
+  <select id="location" required>
+    <option value="">-- เลือก Location --</option>
+    <option value="HQ">HQ</option>
+    <option value="B01">B01</option>
+    <option value="B02">B02</option>
+  </select>
+
+  <label>Owner *</label>
+  <input id="owner" required
+         placeholder="กรอกชื่อผู้รับผิดชอบ">
+
+  <label>Remark</label>
+  <textarea id="remark" rows="3"
+            placeholder="หมายเหตุ (ถ้ามี)"></textarea>
+
+  <button class="submit" type="submit">
+    ส่งข้อมูล
+  </button>
+
+</form>
+
+<p id="message"></p>
+</div>
+
+<iframe name="submitFrame"
+        style="display:none"></iframe>
+
+<script>
+// IMPORTANT: Paste your Apps Script Web App URL here.
+const API_URL = "https://script.google.com/macros/s/AKfycbwezB2j68Bz65FXjJUSEFZIPJUTtvHp4-UDb3k8apBi9teP886Cd4lEqnDSiKvUbtjC/exec";
+
+let scanner = null;
+let sending = false;
+
+const $ = id => document.getElementById(id);
+
+function message(text) {
+  $("message").textContent = text;
+}
+
+async function startScanner() {
+  if (scanner) return;
+
+  if (!window.Html5Qrcode) {
+    message("ไม่สามารถโหลด QR Scanner ได้");
+    return;
+  }
+
+  scanner = new Html5Qrcode("reader");
+
+  try {
+    await scanner.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: { width: 230, height: 230 }
+      },
+      async decodedText => {
+        // Use exactly the text decoded from QR.
+        $("assetNo").value = decodedText;
+        message("สแกน QR สำเร็จ");
+
+        const current = scanner;
+        scanner = null;
+
+        try { await current.stop(); } catch (e) {}
+        try { current.clear(); } catch (e) {}
+      },
+      () => {}
+    );
+  } catch (error) {
+    scanner = null;
+    message("เปิดกล้องไม่สำเร็จ: " + error.message);
+  }
+}
+
+$("assetForm").addEventListener("submit", event => {
+  event.preventDefault();
+
+  if (sending) return;
+
+  if (API_URL.includes("PASTE_YOUR")) {
+    message("กรุณาใส่ Web App URL");
+    return;
+  }
+
+  sending = true;
+
+  const data = {
+    assetNo: $("assetNo").value,
+    status: $("status").value,
+    condition: $("condition").value,
+    location: $("location").value,
+    owner: $("owner").value,
+    remark: $("remark").value
+  };
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = API_URL;
+  form.target = "submitFrame";
+  form.style.display = "none";
+
+  const input = document.createElement("input");
+  input.type = "hidden";
+  input.name = "payload";
+  input.value = JSON.stringify(data);
+
+  form.appendChild(input);
+  document.body.appendChild(form);
+
+  form.submit();
+  form.remove();
+
+  message(
+    "ส่งคำขอแล้ว กรุณาตรวจสอบข้อมูลใน Google Sheets"
+  );
+
+  sending = false;
+});
+</script>
+</body>
+</html>
