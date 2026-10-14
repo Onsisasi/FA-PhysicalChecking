@@ -111,14 +111,20 @@ button {
   <label>Location *</label>
   <select id="location" required>
     <option value="">-- เลือก Location --</option>
-    <option value="HQ">HQ</option>
-    <option value="B01">B01</option>
-    <option value="B02">B02</option>
+    <option value="HQ-OFFICE">HQ-OFFICE</option>
+    <option value="WH-2">WH-2</option>
+    <option value="WH-3">WH-3</option>
+    <option value="WH-4">WH-4</option>
+    <option value="SAMRONG">SAMRONG</option>
+    <option value="MP-M">MP-M</option>
+    <option value="MP-I">MP-I</option>
   </select>
 
-  <label>Owner *</label>
-  <input id="owner" required
-         placeholder="กรอกชื่อผู้รับผิดชอบ">
+  <label>Owner</label>
+  <input
+  id="owner"
+  type="text"
+  placeholder="กรอกชื่อผู้รับผิดชอบ (ถ้ามี)">
 
   <label>Remark</label>
   <textarea id="remark" rows="3"
