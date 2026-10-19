@@ -27,10 +27,7 @@ body {
   border-radius: 12px;
 }
 
-h2 {
-  text-align: center;
-  margin-bottom: 22px;
-}
+h2 { text-align: center; margin-bottom: 22px; }
 
 label {
   display: block;
@@ -57,22 +54,16 @@ button {
   cursor: pointer;
 }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+button:disabled { opacity: 0.5; }
 
-.modeButtons, .cameraTools {
+.modeButtons {
   display: flex;
   gap: 8px;
   margin: 12px 0;
 }
 
-.modeButtons button, .cameraTools button {
-  flex: 1;
-}
-
 .modeButtons button {
+  flex: 1;
   background: #e5e7eb;
 }
 
@@ -94,21 +85,12 @@ button:disabled {
   margin-top: 24px;
 }
 
-.cameraTools button {
-  background: #e5e7eb;
-  font-size: 13px;
-}
-
-#reader {
-  width: 100%;
-  margin-top: 12px;
-}
+#reader { width: 100%; margin-top: 12px; }
 
 #message {
   margin-top: 15px;
   font-weight: bold;
   text-align: center;
-  white-space: pre-wrap;
 }
 
 .note {
@@ -131,7 +113,6 @@ button:disabled {
           type="button" onclick="setMode('scan')">
     Scan QR
   </button>
-
   <button id="manualMode"
           type="button" onclick="setMode('manual')">
     Manual Entry
@@ -139,27 +120,11 @@ button:disabled {
 </div>
 
 <div id="scanSection">
-  <button id="scanBtn" class="scan"
+  <button class="scan" id="scanBtn"
           type="button" onclick="startScanner()">
     📷 เปิดกล้อง Scan QR
   </button>
-
   <div id="reader"></div>
-
-  <div class="cameraTools">
-    <button type="button" onclick="switchCamera()">
-      🔄 เปลี่ยนกล้อง
-    </button>
-
-    <button type="button" onclick="toggleTorch()">
-      🔦 ไฟฉาย
-    </button>
-  </div>
-
-  <button type="button" onclick="stopScanner()"
-          style="width:100%;background:#e5e7eb;">
-    หยุดกล้อง
-  </button>
 </div>
 
 <div id="manualNote" class="note hidden">
@@ -214,37 +179,43 @@ button:disabled {
 <p id="message"></p>
 </div>
 
-<iframe name="submitFrame" id="submitFrame"
-        style="display:none"></iframe>
+<iframe name="submitFrame" style="display:none"></iframe>
 
 <script>
-// ===== CONFIGURATION =====
 const API_URL = "https://script.google.com/macros/s/AKfycbwezB2j68Bz65FXjJUSEFZIPJUTtvHp4-UDb3k8apBi9teP886Cd4lEqnDSiKvUbtjC/exec";
 
-// ===== VARIABLES =====
 const $ = id => document.getElementById(id);
 
 let scanner = null;
-let cameraIds = [];
-let cameraIndex = 0;
-let torchOn = false;
-let scanLocked = false;
 let starting = false;
+let scanLocked = false;
 let sending = false;
 let currentMode = "scan";
 
-function message(text, color = "#333") {
+function message(text) {
   $("message").textContent = text;
-  $("message").style.color = color;
 }
 
-// ===== SCAN / MANUAL MODE =====
+async function stopScanner() {
+  if (!scanner) return;
+
+  const current = scanner;
+  scanner = null;
+
+  try {
+    if (current.isScanning) await current.stop();
+  } catch (e) {}
+
+  try { current.clear(); } catch (e) {}
+}
+
 async function setMode(mode) {
   if (sending || starting) return;
 
   await stopScanner();
 
   currentMode = mode;
+  scanLocked = false;
 
   $("scanSection").classList.toggle(
     "hidden", mode !== "scan"
@@ -269,76 +240,52 @@ async function setMode(mode) {
     ? "กรุณาสแกน QR"
     : "กรอก Asset No. ด้วยตนเอง";
 
-  scanLocked = false;
   message("");
 
-  if (mode === "manual") {
-    $("assetNo").focus();
-  }
+  if (mode === "manual") $("assetNo").focus();
 }
 
-// ===== SCANNER CONFIGURATION =====
-function scannerConfig() {
-  return {
-    fps: 15,
-    qrbox: (width, height) => {
-      const size = Math.floor(
-        Math.min(width, height) * 0.85
-      );
-      return { width: size, height: size };
-    },
-    disableFlip: true
-  };
-}
-
-// ===== START SCANNER =====
 async function startScanner() {
   if (scanner || starting || sending) return;
 
   if (!window.Html5Qrcode) {
-    message("ไม่สามารถโหลด QR Scanner ได้", "red");
+    message("โหลด QR Scanner ไม่สำเร็จ");
     return;
   }
 
   starting = true;
   scanLocked = false;
   $("scanBtn").disabled = true;
-  message("กำลังเปิดกล้อง...");
 
   try {
     scanner = new Html5Qrcode("reader");
 
-    const cameras = await Html5Qrcode.getCameras();
-    cameraIds = cameras.map(c => c.id);
-
-    if (!cameraIds.length) {
-      throw new Error("ไม่พบกล้อง");
-    }
-
-    let backIndex = cameras.findIndex(c =>
-      /back|rear|environment/i.test(c.label)
-    );
-
-    if (backIndex < 0) {
-      backIndex = cameras.length - 1;
-    }
-
-    cameraIndex = backIndex;
-
     await scanner.start(
-      cameraIds[cameraIndex],
-      scannerConfig(),
-      onScanSuccess,
+      { facingMode: "environment" },
+      {
+        fps: 15,
+        qrbox: (width, height) => {
+          const size = Math.floor(
+            Math.min(width, height) * 0.85
+          );
+          return { width: size, height: size };
+        }
+      },
+      async decodedText => {
+        if (scanLocked) return;
+        scanLocked = true;
+
+        // Keep exactly the decoded QR text.
+        $("assetNo").value = decodedText;
+        message("สแกน QR สำเร็จ");
+
+        await stopScanner();
+      },
       () => {}
     );
 
-    message("พร้อมสแกน QR", "green");
-
   } catch (error) {
-    message(
-      "เปิดกล้องไม่สำเร็จ: " + error.message,
-      "red"
-    );
+    message("เปิดกล้องไม่สำเร็จ: " + error.message);
     await stopScanner();
 
   } finally {
@@ -347,117 +294,8 @@ async function startScanner() {
   }
 }
 
-// ===== QR SCAN RESULT =====
-async function onScanSuccess(decodedText) {
-  if (scanLocked || sending) return;
-
-  scanLocked = true;
-
-  // Keep the original QR text exactly as decoded.
-  $("assetNo").value = decodedText;
-
-  message("สแกน QR สำเร็จ", "green");
-
-  await stopScanner();
-}
-
-// ===== STOP CAMERA =====
-async function stopScanner() {
-  if (!scanner) return;
-
-  const current = scanner;
-  scanner = null;
-  torchOn = false;
-
-  try {
-    if (current.isScanning) {
-      await current.stop();
-    }
-  } catch (e) {}
-
-  try {
-    current.clear();
-  } catch (e) {}
-}
-
-// ===== SWITCH CAMERA =====
-async function switchCamera() {
-  if (starting || sending) return;
-
-  if (cameraIds.length < 2) {
-    message("ไม่พบกล้องอื่นให้เปลี่ยน", "red");
-    return;
-  }
-
-  cameraIndex = (cameraIndex + 1) % cameraIds.length;
-
-  await stopScanner();
-
-  starting = true;
-  $("scanBtn").disabled = true;
-
-  try {
-    scanner = new Html5Qrcode("reader");
-    scanLocked = false;
-
-    await scanner.start(
-      cameraIds[cameraIndex],
-      scannerConfig(),
-      onScanSuccess,
-      () => {}
-    );
-
-    message("เปลี่ยนกล้องเรียบร้อย", "green");
-
-  } catch (error) {
-    message(
-      "เปลี่ยนกล้องไม่สำเร็จ: " + error.message,
-      "red"
-    );
-    await stopScanner();
-
-  } finally {
-    starting = false;
-    $("scanBtn").disabled = false;
-  }
-}
-
-// ===== FLASHLIGHT =====
-async function toggleTorch() {
-  if (!scanner || !scanner.isScanning) {
-    message("กรุณาเปิดกล้องก่อน", "red");
-    return;
-  }
-
-  try {
-    const caps = scanner.getRunningTrackCapabilities();
-
-    if (!caps.torch) {
-      message("มือถือไม่รองรับไฟฉายผ่านเว็บ", "red");
-      return;
-    }
-
-    torchOn = !torchOn;
-
-    await scanner.applyVideoConstraints({
-      advanced: [{ torch: torchOn }]
-    });
-
-    message(
-      torchOn ? "เปิดไฟฉายแล้ว" : "ปิดไฟฉายแล้ว",
-      "green"
-    );
-
-  } catch (error) {
-    torchOn = false;
-    message("ไม่สามารถเปิดไฟฉายได้", "red");
-  }
-}
-
-// ===== SUBMIT TO GOOGLE SHEETS =====
 $("assetForm").addEventListener("submit", event => {
   event.preventDefault();
-
   if (sending) return;
 
   const data = {
@@ -470,12 +308,11 @@ $("assetForm").addEventListener("submit", event => {
   };
 
   if (!data.assetNo) {
-    message("กรุณาสแกนหรือกรอก Asset No.", "red");
+    message("กรุณาสแกนหรือกรอก Asset No.");
     return;
   }
 
   sending = true;
-
   const btn = $("submitBtn");
   btn.disabled = true;
   btn.textContent = "กำลังส่งข้อมูล...";
@@ -497,23 +334,19 @@ $("assetForm").addEventListener("submit", event => {
   form.submit();
   form.remove();
 
-  message("ส่งคำขอแล้ว กำลังเตรียมรายการถัดไป");
+  message("กำลังส่งข้อมูล...");
 
-  // Timed reset: not confirmation from Google Sheets.
+  // Reset after 2 seconds (not server confirmation).
   setTimeout(() => {
     $("assetForm").reset();
     $("assetNo").value = "";
 
     sending = false;
     scanLocked = false;
-
     btn.disabled = false;
     btn.textContent = "ส่งข้อมูล";
 
-    message(
-      "พร้อมสแกน QR รายการถัดไป (กรุณาตรวจสอบ CountLog)",
-      "green"
-    );
+    message("ส่งคำขอแล้ว พร้อมสแกน QR รายการถัดไป");
   }, 2000);
 });
 </script>
