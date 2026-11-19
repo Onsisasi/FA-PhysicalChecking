@@ -1,354 +1,1669 @@
-
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>FA Physical Checking</title>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
 <style>
-* { box-sizing: border-box; }
+:root {
+  color-scheme: light;
+  --blue: #1769aa;
+  --ink: #213547;
+  --muted: #536779;
+}
+
+* {
+  box-sizing: border-box;
+}
 
 body {
-  font-family: Arial, sans-serif;
-  background: #f3f4f6;
   margin: 0;
-  padding: 15px;
-  color: #222;
+  padding: 16px;
+  background: #f1f5f9;
+  color: var(--ink);
+  font-family: Arial, sans-serif;
 }
 
 .container {
-  background: white;
+  width: 100%;
   max-width: 450px;
   margin: auto;
   padding: 22px;
-  border-radius: 12px;
-}
-
-h2 { text-align: center; margin-bottom: 22px; }
-
-label {
-  display: block;
-  font-weight: bold;
-  margin: 18px 0 7px;
-}
-
-input, select, textarea {
-  width: 100%;
-  padding: 13px;
-  font-size: 16px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
   background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
 }
 
-input[readonly] { background: #eee; }
+.eyebrow {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1.4px;
+  text-align: center;
+}
+
+h1 {
+  margin: 9px 0 7px;
+  font-size: 25px;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 13px;
+}
 
 button {
-  padding: 14px;
-  font-size: 15px;
-  border: none;
+  min-height: 46px;
+  padding: 13px 12px;
+  font: 600 15px Arial, sans-serif;
+  border: 0;
   border-radius: 9px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
-button:disabled { opacity: 0.5; }
+button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #e2a13b;
+  outline-offset: 3px;
+}
 
 .modeButtons {
   display: flex;
   gap: 8px;
-  margin: 12px 0;
+  margin-bottom: 14px;
 }
 
 .modeButtons button {
   flex: 1;
-  background: #e5e7eb;
+  background: #e8edf3;
+  color: var(--ink);
 }
 
 .modeButtons button.active {
-  background: #1769aa;
+  background: var(--blue);
   color: white;
 }
 
-.scan {
-  background: #333;
-  color: white;
+.primary {
   width: 100%;
-}
-
-.submit {
-  background: #1769aa;
+  background: var(--blue);
   color: white;
-  width: 100%;
-  margin-top: 24px;
 }
 
-#reader { width: 100%; margin-top: 12px; }
+.secondary {
+  width: 100%;
+  margin-top: 8px;
+  background: #edf2f7;
+  color: #2c4e6a;
+  border: 1px solid #d7e0e8;
+}
 
-#message {
-  margin-top: 15px;
-  font-weight: bold;
-  text-align: center;
+#scanBtn {
+  background: #233d53;
+}
+
+#viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #101922;
+  margin-top: 13px;
+}
+
+#video {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+#guide {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid white;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1000px #07142250;
+  pointer-events: none;
+}
+
+#guide::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid #ffffff55;
+  border-radius: 7px;
 }
 
 .note {
-  font-size: 13px;
-  color: #666;
-  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 9px 0 0;
 }
 
-.hidden { display: none; }
+#scanMessage {
+  min-height: 21px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+[data-kind="error"] {
+  color: #a82824;
+}
+
+[data-kind="ok"] {
+  color: #1c714b;
+}
+
+[data-kind="warning"] {
+  color: #85520b;
+}
+
+#manualNote {
+  padding: 12px;
+  border-radius: 9px;
+  background: #f1f5f9;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+
+label {
+  display: block;
+  margin: 17px 0 7px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.optional {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: normal;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 13px;
+  font: 16px/1.4 Arial, sans-serif;
+  border: 1px solid #bcc9d5;
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #91bbdf;
+  outline-offset: 1px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+#assetNo {
+  min-height: 50px;
+  overflow-wrap: anywhere;
+}
+
+#assetNo[readonly] {
+  background: #f0f4f8;
+}
+
+#assetNo.hasResult {
+  background: #f0faf4;
+  border-color: #67a781;
+}
+
+#submitBtn {
+  margin-top: 22px;
+}
+
+#message {
+  margin: 13px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+#connectionNote {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff4dc;
+  color: #80520c;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 13px;
+}
+
+details {
+  margin-top: 17px;
+  padding-top: 14px;
+  border-top: 1px solid #e1e7ee;
+}
+
+summary {
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+pre {
+  font: 12px/1.55 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 12px 0 0;
+}
+
+footer {
+  margin: 19px 0 0;
+  color: #647689;
+  font-size: 11px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 360px) {
+  body {
+    padding: 9px;
+  }
+
+  .container {
+    padding: 17px;
+  }
+
+  h1 {
+    font-size: 23px;
+  }
+}
 </style>
 </head>
 
 <body>
-<div class="container">
 
-<h2>FA Physical Checking</h2>
+<main class="container">
 
-<div class="modeButtons">
-  <button id="scanMode" class="active"
-          type="button" onclick="setMode('scan')">
-    Scan QR
-  </button>
-  <button id="manualMode"
-          type="button" onclick="setMode('manual')">
-    Manual Entry
-  </button>
-</div>
+  <div class="eyebrow">ASSET VERIFICATION</div>
 
-<div id="scanSection">
-  <button class="scan" id="scanBtn"
-          type="button" onclick="startScanner()">
-    📷 เปิดกล้อง Scan QR
-  </button>
-  <div id="reader"></div>
-</div>
+  <h1>FA Physical Checking</h1>
 
-<div id="manualNote" class="note hidden">
-  ใช้เมื่อ QR Tag หาย ชำรุด หรือไม่สามารถสแกนได้
-</div>
+  <p class="subtitle">
+    Scan a tag. Check the details. Submit one asset.
+  </p>
 
-<form id="assetForm">
+  <div id="connectionNote" hidden role="status">
+    You appear to be offline. Your form will not be submitted.
+    Reconnect before pressing Submit.
+  </div>
 
-  <label>Asset No. *</label>
-  <input id="assetNo" readonly required
-         placeholder="กรุณาสแกน QR">
+  <div class="modeButtons"
+       role="group"
+       aria-label="Asset entry mode">
 
-  <label>Status *</label>
-  <select id="status" required>
-    <option value="">-- เลือก Status --</option>
-    <option value="Found">Found</option>
-    <option value="Not Found">Not Found</option>
-  </select>
+    <button id="scanMode"
+            class="active"
+            type="button"
+            aria-pressed="true"
+            disabled>
+      Scan QR
+    </button>
 
-  <label>Condition *</label>
-  <select id="condition" required>
-    <option value="">-- เลือก Condition --</option>
-    <option value="Good">Good</option>
-    <option value="Damaged">Damaged</option>
-  </select>
+    <button id="manualMode"
+            type="button"
+            aria-pressed="false"
+            disabled>
+      Manual Entry
+    </button>
 
-  <label>Location *</label>
-  <select id="location" required>
-    <option value="">-- เลือก Location --</option>
-    <option value="HQ-OFFICE">HQ-OFFICE</option>
-    <option value="WH-2">WH-2</option>
-    <option value="WH-3">WH-3</option>
-    <option value="WH-4">WH-4</option>
-    <option value="SAMRONG">SAMRONG</option>
-    <option value="MP-M">MP-M</option>
-    <option value="MP-I">MP-I</option>
-  </select>
+  </div>
 
-  <label>Owner</label>
-  <input id="owner" type="text"
-         placeholder="กรอกชื่อผู้รับผิดชอบ (ถ้ามี)">
+  <section id="scanSection" aria-label="QR scanner">
 
-  <label>Remark</label>
-  <textarea id="remark" rows="3"
-            placeholder="หมายเหตุ (ถ้ามี)"></textarea>
+    <button id="scanBtn"
+            class="primary"
+            type="button"
+            disabled>
+      Open camera / Scan QR
+    </button>
 
-  <button id="submitBtn" class="submit" type="submit">
-    ส่งข้อมูล
-  </button>
-</form>
+    <div id="viewport" hidden>
 
-<p id="message"></p>
-</div>
+      <video id="video"
+             autoplay
+             muted
+             playsinline
+             aria-label="Camera preview"></video>
 
-<iframe name="submitFrame" style="display:none"></iframe>
+      <div id="guide" aria-hidden="true"></div>
 
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwezB2j68Bz65FXjJUSEFZIPJUTtvHp4-UDb3k8apBi9teP886Cd4lEqnDSiKvUbtjC/exec";
+    </div>
+
+    <p class="note">
+      Keep ONE QR tag in view, with its white border visible.
+      Hold steady. Move slightly farther away if the image is blurry.
+    </p>
+
+    <p id="scanMessage"
+       role="status"
+       aria-live="polite">
+      Loading page...
+    </p>
+
+  </section>
+
+  <div id="manualNote" hidden>
+    Use Manual Entry when a QR tag is missing, damaged,
+    or cannot be read.
+  </div>
+
+  <form id="assetForm" novalidate>
+
+    <fieldset id="formFields" disabled>
+
+      <label for="assetNo">Asset No. *</label>
+
+      <textarea id="assetNo"
+                rows="1"
+                readonly
+                required
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="Please scan a QR code"></textarea>
+
+      <p id="assetHint" class="note">
+        The decoded QR text is kept exactly as returned by the reader.
+      </p>
+
+      <label for="status">Status *</label>
+
+      <select id="status" required>
+        <option value="">-- Select Status --</option>
+        <option value="Found">Found</option>
+        <option value="Not Found">Not Found</option>
+      </select>
+
+      <label for="condition">Condition *</label>
+
+      <select id="condition" required>
+        <option value="">-- Select Condition --</option>
+        <option value="Good">Good</option>
+        <option value="Damaged">Damaged</option>
+      </select>
+
+      <label for="location">Location *</label>
+
+      <select id="location" required>
+        <option value="">-- Select Location --</option>
+        <option value="HQ-OFFICE">HQ-OFFICE</option>
+        <option value="WH-2">WH-2</option>
+        <option value="WH-3">WH-3</option>
+        <option value="WH-4">WH-4</option>
+        <option value="SAMRONG">SAMRONG</option>
+        <option value="MP-M">MP-M</option>
+        <option value="MP-I">MP-I</option>
+      </select>
+
+      <label for="owner">
+        Owner <span class="optional">(optional)</span>
+      </label>
+
+      <input id="owner"
+             type="text"
+             placeholder="Responsible person, if known"
+             autocomplete="off">
+
+      <label for="remark">
+        Remark <span class="optional">(optional)</span>
+      </label>
+
+      <textarea id="remark"
+                rows="3"
+                placeholder="Additional notes, if any"></textarea>
+
+      <button id="submitBtn"
+              class="primary"
+              type="submit">
+        Submit
+      </button>
+
+    </fieldset>
+
+  </form>
+
+  <p id="message"
+     role="status"
+     aria-live="polite"></p>
+
+  <p class="note">
+    Submission uses your existing Google Sheets service.
+    This version cannot verify that a row was saved.
+    Check the sheet before retrying a request.
+  </p>
+
+  <details id="lastRequestPanel" hidden>
+
+    <summary>Last submitted request - not verified</summary>
+
+    <p class="note">
+      One request is kept in this page's memory until it is
+      refreshed or closed. This is not a server receipt.
+      Restore only after checking Google Sheets to avoid a duplicate.
+    </p>
+
+    <pre id="lastRequestData"></pre>
+
+    <button id="restoreBtn"
+            class="secondary"
+            type="button">
+      Restore last request
+    </button>
+
+  </details>
+
+  <details>
+
+    <summary>Camera details</summary>
+
+    <pre id="cameraDetails">The camera has not been opened.</pre>
+
+  </details>
+
+  <footer>
+    Mobile QR v2.1 - 19 Nov 2026<br>
+    Camera images are decoded in the browser;
+    only the form fields are submitted.
+  </footer>
+
+  <noscript>
+    <p>JavaScript must be enabled to use this page.</p>
+  </noscript>
+
+</main>
+
+<script type="module">
+
+// Existing Apps Script endpoint.
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbwezB2j68Bz65FXjJUSEFZIPJUTtvHp4-UDb3k8apBi9teP886Cd4lEqnDSiKvUbtjC/exec";
+
+// Pinned QR reader version.
+const LIBRARY_URL =
+  "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
+
+const RESPONSE_WAIT_MS = 30000;
 
 const $ = id => document.getElementById(id);
 
-let scanner = null;
-let starting = false;
-let scanLocked = false;
-let sending = false;
+const video = $("video");
+const form = $("assetForm");
+
 let currentMode = "scan";
 
-function message(text) {
+// Camera states: idle | opening | live.
+let phase = "idle";
+
+let sending = false;
+let cameraOpening = false;
+let stream = null;
+let generation = 0;
+let scanTimer = null;
+
+let QrScanner = null;
+let engine = null;
+let decoderPromise = null;
+let decoderEpoch = 0;
+let pendingDecode = Promise.resolve();
+
+// Preserve the exact QR text independently of the displayed field.
+let rawQrText = null;
+
+let lastRequest = null;
+let cameraInfo = {};
+
+
+/* -------------------------------------------------------
+   Messages and interface
+------------------------------------------------------- */
+
+function message(text, kind = "") {
   $("message").textContent = text;
+  $("message").dataset.kind = kind;
 }
 
-async function stopScanner() {
-  if (!scanner) return;
-
-  const current = scanner;
-  scanner = null;
-
-  try {
-    if (current.isScanning) await current.stop();
-  } catch (e) {}
-
-  try { current.clear(); } catch (e) {}
+function scanMessage(text, kind = "") {
+  $("scanMessage").textContent = text;
+  $("scanMessage").dataset.kind = kind;
 }
 
-async function setMode(mode) {
-  if (sending || starting) return;
+function refreshUI() {
+  const scanning = phase !== "idle";
 
-  await stopScanner();
-
-  currentMode = mode;
-  scanLocked = false;
-
-  $("scanSection").classList.toggle(
-    "hidden", mode !== "scan"
-  );
-
-  $("manualNote").classList.toggle(
-    "hidden", mode !== "manual"
-  );
+  $("scanMode").disabled = sending;
+  $("manualMode").disabled = sending;
 
   $("scanMode").classList.toggle(
-    "active", mode === "scan"
+    "active",
+    currentMode === "scan"
   );
 
   $("manualMode").classList.toggle(
-    "active", mode === "manual"
+    "active",
+    currentMode === "manual"
   );
 
-  $("assetNo").value = "";
-  $("assetNo").readOnly = mode === "scan";
+  $("scanMode").setAttribute(
+    "aria-pressed",
+    String(currentMode === "scan")
+  );
 
-  $("assetNo").placeholder = mode === "scan"
-    ? "กรุณาสแกน QR"
-    : "กรอก Asset No. ด้วยตนเอง";
+  $("manualMode").setAttribute(
+    "aria-pressed",
+    String(currentMode === "manual")
+  );
 
-  message("");
+  $("scanSection").hidden = currentMode !== "scan";
+  $("manualNote").hidden = currentMode !== "manual";
 
-  if (mode === "manual") $("assetNo").focus();
+  $("assetNo").readOnly = currentMode === "scan";
+
+  $("assetNo").placeholder =
+    currentMode === "scan"
+      ? "Please scan a QR code"
+      : "Enter Asset No. manually";
+
+  $("assetHint").textContent =
+    currentMode === "scan"
+      ? "The decoded QR text is kept exactly as returned by the reader."
+      : "Enter the full asset number, including any suffix shown on the tag.";
+
+  $("scanBtn").disabled =
+    sending || scanning || cameraOpening;
+
+  $("scanBtn").textContent =
+    phase === "opening"
+      ? "Opening camera..."
+      : phase === "live"
+        ? "Camera active - scanning..."
+        : cameraOpening
+          ? "Camera permission pending..."
+          : rawQrText !== null
+            ? "Scan a different QR"
+            : "Open camera / Scan QR";
+
+  $("formFields").disabled = sending;
+
+  $("submitBtn").disabled = sending || scanning;
+
+  $("submitBtn").textContent =
+    sending ? "Sending request..." : "Submit";
+
+  $("restoreBtn").disabled =
+    sending || scanning || !lastRequest;
 }
 
-async function startScanner() {
-  if (scanner || starting || sending) return;
+function displayCameraInfo() {
+  $("cameraDetails").textContent =
+    JSON.stringify(cameraInfo, null, 2);
+}
 
-  if (!window.Html5Qrcode) {
-    message("โหลด QR Scanner ไม่สำเร็จ");
+function fitAssetField() {
+  $("assetNo").style.height = "auto";
+
+  $("assetNo").style.height =
+    Math.min(
+      160,
+      Math.max(50, $("assetNo").scrollHeight + 2)
+    ) + "px";
+}
+
+function clearAsset() {
+  rawQrText = null;
+  $("assetNo").value = "";
+  $("assetNo").classList.remove("hasResult");
+  fitAssetField();
+}
+
+
+/* -------------------------------------------------------
+   Camera lifecycle
+------------------------------------------------------- */
+
+function releaseCamera() {
+  // Invalidate outstanding reads and late camera responses.
+  ++generation;
+
+  clearTimeout(scanTimer);
+  scanTimer = null;
+
+  const oldStream = stream;
+  stream = null;
+
+  if (oldStream) {
+    oldStream.getTracks().forEach(track => track.stop());
+  }
+
+  video.pause();
+  video.srcObject = null;
+
+  $("viewport").hidden = true;
+}
+
+function setMode(mode) {
+  if (sending || mode === currentMode) return;
+
+  releaseCamera();
+
+  phase = "idle";
+  currentMode = mode;
+
+  clearAsset();
+
+  scanMessage("Ready. Open the camera to scan one tag.");
+  message("");
+
+  refreshUI();
+
+  if (mode === "manual") {
+    $("assetNo").focus();
+  }
+}
+
+
+/* -------------------------------------------------------
+   QR decoder
+------------------------------------------------------- */
+
+function disposeDecoder() {
+  ++decoderEpoch;
+
+  if (
+    typeof Worker !== "undefined" &&
+    engine instanceof Worker
+  ) {
+    engine.terminate();
+  }
+
+  engine = null;
+  decoderPromise = null;
+}
+
+async function loadDecoder() {
+  if (!decoderPromise) {
+    const epoch = decoderEpoch;
+
+    const promise = (async () => {
+      const library = (await import(LIBRARY_URL)).default;
+      const createdEngine = await library.createQrEngine();
+
+      if (epoch !== decoderEpoch) {
+        if (
+          typeof Worker !== "undefined" &&
+          createdEngine instanceof Worker
+        ) {
+          createdEngine.terminate();
+        }
+
+        throw new Error("Decoder initialization cancelled.");
+      }
+
+      QrScanner = library;
+      engine = createdEngine;
+    })();
+
+    decoderPromise = promise;
+
+    promise.catch(() => {
+      if (decoderPromise === promise) {
+        decoderPromise = null;
+      }
+    });
+  }
+
+  try {
+    await decoderPromise;
+  } catch (_) {
+    throw new Error(
+      "Cannot load the QR reader. Check your connection " +
+      "or network restrictions. Manual Entry still works."
+    );
+  }
+}
+
+function friendlyCameraError(error) {
+  const messages = {
+    NotAllowedError:
+      "Camera access was not granted. Allow camera access " +
+      "in browser settings and open this HTTPS page directly.",
+
+    NotFoundError:
+      "No suitable camera was found. Use Manual Entry.",
+
+    NotReadableError:
+      "The camera is busy or unavailable. Close other camera " +
+      "apps, then try again.",
+
+    OverconstrainedError:
+      "The requested camera settings are unavailable. " +
+      "Reopen the camera or use Manual Entry.",
+
+    AbortError:
+      "The camera could not start. Close other camera apps and retry."
+  };
+
+  return messages[error?.name] ||
+    String(error?.message || error);
+}
+
+
+/* -------------------------------------------------------
+   Scan frame and image processing region
+------------------------------------------------------- */
+
+function updateGuide() {
+  if ($("viewport").hidden) return;
+
+  const rect = video.getBoundingClientRect();
+
+  const side = Math.floor(
+    Math.min(rect.width, rect.height) * 0.8
+  );
+
+  $("guide").style.width = side + "px";
+  $("guide").style.height = side + "px";
+}
+
+function scanRegion(width, height, full, limit) {
+  const side = Math.max(
+    1,
+    Math.floor(Math.min(width, height) * 0.8)
+  );
+
+  const w = full ? width : side;
+  const h = full ? height : side;
+
+  const scale = Math.min(
+    1,
+    limit / Math.max(w, h)
+  );
+
+  return {
+    x: full ? 0 : Math.floor((width - w) / 2),
+    y: full ? 0 : Math.floor((height - h) / 2),
+
+    width: w,
+    height: h,
+
+    downScaledWidth: Math.max(
+      1,
+      Math.round(w * scale)
+    ),
+
+    downScaledHeight: Math.max(
+      1,
+      Math.round(h * scale)
+    )
+  };
+}
+
+
+/* -------------------------------------------------------
+   Optional autofocus
+------------------------------------------------------- */
+
+async function tuneFocus(track, token) {
+  let caps = {};
+
+  try {
+    caps = track.getCapabilities?.() || {};
+  } catch (_) {}
+
+  const modes = Array.isArray(caps.focusMode)
+    ? caps.focusMode
+    : [];
+
+  if (token !== generation) return;
+
+  cameraInfo.focusControl = modes.length
+    ? modes.join(", ")
+    : "Not exposed by this browser";
+
+  cameraInfo.focusRequest = "Using browser default";
+
+  displayCameraInfo();
+
+  if (!modes.includes("continuous")) return;
+
+  try {
+    const existing = track.getConstraints?.() || {};
+
+    await track.applyConstraints({
+      ...existing,
+      advanced: [
+        ...(existing.advanced || []),
+        { focusMode: "continuous" }
+      ]
+    });
+
+    if (token !== generation) return;
+
+    cameraInfo.focusRequest =
+      "Continuous focus requested";
+
+  } catch (_) {
+    if (token !== generation) return;
+
+    cameraInfo.focusRequest =
+      "Focus request not accepted; using browser default";
+  }
+
+  cameraInfo.focusSetting =
+    track.getSettings?.().focusMode || "Not exposed";
+
+  displayCameraInfo();
+}
+
+
+/* -------------------------------------------------------
+   Accept one QR result
+------------------------------------------------------- */
+
+function acceptQr(text, token) {
+  if (
+    token !== generation ||
+    sending ||
+    currentMode !== "scan"
+  ) {
     return;
   }
 
-  starting = true;
-  scanLocked = false;
-  $("scanBtn").disabled = true;
+  if (
+    typeof text !== "string" ||
+    text.length === 0
+  ) {
+    return;
+  }
+
+  // Preserve the exact decoded string.
+  // Do not trim, split, change case, parse, or convert to a number.
+  rawQrText = text;
+
+  $("assetNo").value = text;
+  $("assetNo").classList.add("hasResult");
+
+  fitAssetField();
+
+  releaseCamera();
+  phase = "idle";
+
+  cameraInfo.result = "QR decoded";
+  displayCameraInfo();
+
+  scanMessage(
+    "QR read. Check Asset No., complete the fields, then press Submit.",
+    "ok"
+  );
+
+  refreshUI();
 
   try {
-    scanner = new Html5Qrcode("reader");
+    navigator.vibrate?.(70);
+  } catch (_) {}
+}
 
-    await scanner.start(
-      { facingMode: "environment" },
-      {
-        fps: 15,
-        qrbox: (width, height) => {
-          const size = Math.floor(
-            Math.min(width, height) * 0.85
-          );
-          return { width: size, height: size };
+
+/* -------------------------------------------------------
+   Start live camera scanning
+------------------------------------------------------- */
+
+async function startScanner() {
+  if (
+    sending ||
+    phase !== "idle" ||
+    cameraOpening ||
+    currentMode !== "scan"
+  ) {
+    return;
+  }
+
+  releaseCamera();
+
+  const token = generation;
+
+  clearAsset();
+
+  phase = "opening";
+  cameraOpening = true;
+
+  refreshUI();
+
+  scanMessage(
+    "Loading QR reader and requesting camera access..."
+  );
+
+  let acquired = null;
+
+  try {
+    if (
+      !window.isSecureContext ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      throw new Error(
+        "Open the app directly from your HTTPS website, " +
+        "not from a file preview."
+      );
+    }
+
+    await pendingDecode.catch(() => {});
+
+    if (token !== generation) return;
+
+    await loadDecoder();
+
+    if (token !== generation) return;
+
+    try {
+      acquired = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+
+        video: {
+          facingMode: { exact: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
         }
-      },
-      async decodedText => {
-        if (scanLocked) return;
-        scanLocked = true;
+      });
 
-        // Keep exactly the decoded QR text.
-        $("assetNo").value = decodedText;
-        message("สแกน QR สำเร็จ");
+    } catch (error) {
+      if (token !== generation) return;
 
-        await stopScanner();
+      if (
+        !["OverconstrainedError", "NotFoundError"]
+          .includes(error?.name)
+      ) {
+        throw error;
+      }
+
+      acquired = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+    }
+
+    if (token !== generation) {
+      acquired.getTracks().forEach(track => track.stop());
+      return;
+    }
+
+    stream = acquired;
+
+    $("viewport").hidden = false;
+
+    video.srcObject = stream;
+
+    await video.play();
+
+    if (token !== generation) return;
+
+    const track = stream.getVideoTracks()[0];
+    const settings = track.getSettings?.() || {};
+
+    cameraInfo = {
+      camera: track.label || "Not exposed",
+
+      facingMode: settings.facingMode || "Not exposed",
+
+      sourcePixels:
+        `${video.videoWidth} x ${video.videoHeight}`,
+
+      decoder: "qr-scanner 1.4.2",
+
+      engine:
+        typeof Worker !== "undefined" &&
+        engine instanceof Worker
+          ? "Software / worker"
+          : "Browser native",
+
+      scanArea:
+        "Center (up to 960 px) + full image every third attempt " +
+        "(up to 1280 px)",
+
+      result: "Scanning"
+    };
+
+    displayCameraInfo();
+
+    // Focus tuning must not delay the first decoding attempt.
+    void tuneFocus(track, token);
+
+    track.addEventListener(
+      "ended",
+      () => {
+        if (token !== generation) return;
+
+        releaseCamera();
+        phase = "idle";
+
+        refreshUI();
+
+        scanMessage(
+          "The camera was disconnected. Tap Open camera to try again.",
+          "error"
+        );
       },
-      () => {}
+      { once: true }
     );
 
+    updateGuide();
+
+    phase = "live";
+
+    refreshUI();
+
+    scanMessage(
+      settings.facingMode === "user"
+        ? "The browser selected a front camera. Try reopening " +
+          "the camera, or use Manual Entry."
+        : "Camera ready. Keep one QR tag in view and hold steady."
+    );
+
+    const canvas = document.createElement("canvas");
+    const began = performance.now();
+
+    let attempts = 0;
+    let errorCount = 0;
+
+    async function tick() {
+      if (
+        token !== generation ||
+        phase !== "live"
+      ) {
+        return;
+      }
+
+      if (
+        video.readyState < 2 ||
+        !video.videoWidth ||
+        !video.videoHeight
+      ) {
+        scanTimer = setTimeout(tick, 100);
+        return;
+      }
+
+      const full = ++attempts % 3 === 0;
+
+      const region = scanRegion(
+        video.videoWidth,
+        video.videoHeight,
+        full,
+        full ? 1280 : 960
+      );
+
+      let result = null;
+      let failure = null;
+
+      try {
+        pendingDecode = QrScanner.scanImage(video, {
+          qrEngine: engine,
+          canvas,
+          scanRegion: region,
+          returnDetailedScanResult: true
+        });
+
+        result = await pendingDecode;
+
+      } catch (error) {
+        failure = error;
+      }
+
+      if (
+        token !== generation ||
+        phase !== "live"
+      ) {
+        return;
+      }
+
+      if (
+        result &&
+        typeof result.data === "string" &&
+        result.data.length
+      ) {
+        cameraInfo.readAfterSeconds = Number(
+          ((performance.now() - began) / 1000).toFixed(2)
+        );
+
+        cameraInfo.timingNote =
+          "Includes aiming and focusing; not a speed benchmark.";
+
+        acceptQr(result.data, token);
+        return;
+      }
+
+      const failureText = String(
+        failure?.message || failure || ""
+      );
+
+      errorCount =
+        failure && !/no qr code found/i.test(failureText)
+          ? errorCount + 1
+          : 0;
+
+      if (errorCount >= 3) {
+        releaseCamera();
+        phase = "idle";
+
+        disposeDecoder();
+
+        refreshUI();
+
+        scanMessage(
+          "The QR reader stopped unexpectedly. " +
+          "Reopen the camera or use Manual Entry.",
+          "error"
+        );
+
+        return;
+      }
+
+      if (performance.now() - began > 6000) {
+        scanMessage(
+          "Not read yet. Move slightly farther away if blurry, " +
+          "reduce glare, or use Manual Entry."
+        );
+      }
+
+      // Process frames sequentially, without overlapping reads.
+      scanTimer = setTimeout(tick, 90);
+    }
+
+    void tick();
+
   } catch (error) {
-    message("เปิดกล้องไม่สำเร็จ: " + error.message);
-    await stopScanner();
+    if (acquired && acquired !== stream) {
+      acquired.getTracks().forEach(track => track.stop());
+    }
+
+    if (token !== generation) return;
+
+    releaseCamera();
+    phase = "idle";
+
+    scanMessage(
+      friendlyCameraError(error),
+      "error"
+    );
 
   } finally {
-    starting = false;
-    $("scanBtn").disabled = false;
+    cameraOpening = false;
+    refreshUI();
   }
 }
 
-$("assetForm").addEventListener("submit", event => {
-  event.preventDefault();
-  if (sending) return;
 
-  const data = {
-    assetNo: $("assetNo").value,
+/* -------------------------------------------------------
+   Form data
+------------------------------------------------------- */
+
+function collectData() {
+  return {
+    assetNo:
+      currentMode === "scan"
+        ? rawQrText
+        : $("assetNo").value,
+
     status: $("status").value,
     condition: $("condition").value,
     location: $("location").value,
     owner: $("owner").value,
     remark: $("remark").value
   };
+}
 
-  if (!data.assetNo) {
-    message("กรุณาสแกนหรือกรอก Asset No.");
+function resetForNextAsset() {
+  releaseCamera();
+  phase = "idle";
+
+  form.reset();
+
+  clearAsset();
+
+  scanMessage(
+    "Ready for the next asset. Tap Open camera / Scan QR."
+  );
+}
+
+function rememberRequest(data) {
+  lastRequest = {
+    mode: currentMode,
+    data: { ...data }
+  };
+
+  $("lastRequestData").textContent =
+    JSON.stringify(data, null, 2);
+
+  $("lastRequestPanel").hidden = false;
+}
+
+function restoreLastRequest() {
+  if (
+    !lastRequest ||
+    sending ||
+    phase !== "idle"
+  ) {
     return;
   }
 
+  const confirmed = window.confirm(
+    "Check Google Sheets first to avoid a duplicate. " +
+    "Restore this request into the form? " +
+    "Nothing will be submitted automatically."
+  );
+
+  if (!confirmed) return;
+
+  releaseCamera();
+
+  currentMode = lastRequest.mode;
+
+  rawQrText =
+    currentMode === "scan"
+      ? lastRequest.data.assetNo
+      : null;
+
+  for (const [key, value] of Object.entries(lastRequest.data)) {
+    $(key).value = value;
+  }
+
+  $("assetNo").classList.toggle(
+    "hasResult",
+    rawQrText !== null
+  );
+
+  fitAssetField();
+  refreshUI();
+
+  scanMessage(
+    rawQrText !== null
+      ? "Previous decoded text restored; no new scan was performed."
+      : ""
+  );
+
+  message(
+    "Request restored only. Confirm it is missing from " +
+    "Google Sheets before submitting again.",
+    "warning"
+  );
+}
+
+
+/* -------------------------------------------------------
+   Submit using the existing Apps Script contract
+------------------------------------------------------- */
+
+async function sendExistingForm(data) {
+  const iframe = document.createElement("iframe");
+
+  iframe.name =
+    "faSubmit_" +
+    Date.now() +
+    "_" +
+    Math.random().toString(36).slice(2);
+
+  iframe.title = "Asset submission response";
+  iframe.hidden = true;
+  iframe.src = "about:blank";
+
+  let posted = false;
+  let postForm = null;
+
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        iframe.onload = null;
+
+        reject(
+          new Error(
+            "Cannot prepare submission. Your form was not cleared."
+          )
+        );
+      }, 5000);
+
+      iframe.onload = () => {
+        clearTimeout(timer);
+        iframe.onload = null;
+        resolve();
+      };
+
+      document.body.appendChild(iframe);
+    });
+
+    if (navigator.onLine === false) {
+      throw new Error(
+        "You appear to be offline. No request was sent; " +
+        "your form has been kept."
+      );
+    }
+
+    postForm = document.createElement("form");
+
+    postForm.method = "POST";
+    postForm.action = API_URL;
+    postForm.target = iframe.name;
+    postForm.acceptCharset = "UTF-8";
+    postForm.hidden = true;
+
+    const payload = document.createElement("input");
+
+    payload.type = "hidden";
+    payload.name = "payload";
+    payload.value = JSON.stringify(data);
+
+    postForm.appendChild(payload);
+
+    document.body.appendChild(postForm);
+
+    const outcome = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        iframe.onload = null;
+        resolve("timeout");
+      }, RESPONSE_WAIT_MS);
+
+      iframe.onload = () => {
+        // Ignore the initial blank document.
+        try {
+          if (
+            iframe.contentWindow.location.href === "about:blank"
+          ) {
+            return;
+          }
+        } catch (_) {}
+
+        clearTimeout(timer);
+
+        iframe.onload = null;
+
+        resolve("navigation-ended");
+      };
+
+      try {
+        HTMLFormElement.prototype.submit.call(postForm);
+
+        posted = true;
+
+        rememberRequest(data);
+
+      } catch (error) {
+        clearTimeout(timer);
+
+        iframe.onload = null;
+
+        reject(error);
+      }
+    });
+
+    if (outcome === "navigation-ended") {
+      // A cross-origin iframe load is NOT proof that a row was saved.
+      resetForNextAsset();
+
+      message(
+        "Submission attempted; saving is NOT verified. " +
+        "The form is ready for the next asset. " +
+        "Check Google Sheets, especially before retrying. " +
+        "The last request can be restored below.",
+        "warning"
+      );
+
+    } else {
+      message(
+        "No response was observed. Your form has been kept, " +
+        "but the request may still have been saved. " +
+        "Check Google Sheets before retrying to avoid duplicates.",
+        "warning"
+      );
+    }
+
+    // Do not automatically retry a timed-out request.
+    if (outcome === "timeout") {
+      setTimeout(() => iframe.remove(), 120000);
+    } else {
+      iframe.remove();
+    }
+
+  } catch (error) {
+    iframe.remove();
+
+    message(
+      posted
+        ? "Submission status is unknown. Check Google Sheets " +
+          "before retrying. Your form has been kept."
+        : String(error?.message || error),
+      "error"
+    );
+
+  } finally {
+    if (postForm) {
+      postForm.remove();
+    }
+  }
+}
+
+
+/* -------------------------------------------------------
+   Submit button
+------------------------------------------------------- */
+
+form.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  if (
+    sending ||
+    phase !== "idle"
+  ) {
+    return;
+  }
+
+  const data = collectData();
+
+  if (
+    typeof data.assetNo !== "string" ||
+    data.assetNo.length === 0
+  ) {
+    message(
+      "Please scan a QR code or enter Asset No. first.",
+      "error"
+    );
+
+    if (currentMode === "manual") {
+      $("assetNo").focus();
+    }
+
+    return;
+  }
+
+  if (!form.reportValidity()) return;
+
+  if (navigator.onLine === false) {
+    message(
+      "You appear to be offline. Reconnect before submitting. " +
+      "Your form has been kept.",
+      "error"
+    );
+
+    return;
+  }
+
+  if (
+    lastRequest &&
+    JSON.stringify(lastRequest.data) === JSON.stringify(data)
+  ) {
+    const confirmed = window.confirm(
+      "This matches your last submitted request. " +
+      "Check Google Sheets first. Send again ONLY if you " +
+      "confirmed that the previous row was not saved. Continue?"
+    );
+
+    if (!confirmed) return;
+  }
+
   sending = true;
-  const btn = $("submitBtn");
-  btn.disabled = true;
-  btn.textContent = "กำลังส่งข้อมูล...";
 
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = API_URL;
-  form.target = "submitFrame";
-  form.style.display = "none";
+  releaseCamera();
 
-  const input = document.createElement("input");
-  input.type = "hidden";
-  input.name = "payload";
-  input.value = JSON.stringify(data);
+  refreshUI();
 
-  form.appendChild(input);
-  document.body.appendChild(form);
+  message(
+    "Sending one request. Keep this page open until the status changes."
+  );
 
-  form.submit();
-  form.remove();
+  try {
+    await sendExistingForm(data);
 
-  message("กำลังส่งข้อมูล...");
-
-  // Reset after 2 seconds (not server confirmation).
-  setTimeout(() => {
-    $("assetForm").reset();
-    $("assetNo").value = "";
-
+  } finally {
     sending = false;
-    scanLocked = false;
-    btn.disabled = false;
-    btn.textContent = "ส่งข้อมูล";
-
-    message("ส่งคำขอแล้ว พร้อมสแกน QR รายการถัดไป");
-  }, 2000);
+    refreshUI();
+  }
 });
+
+
+/* -------------------------------------------------------
+   Events
+------------------------------------------------------- */
+
+$("scanMode").addEventListener(
+  "click",
+  () => setMode("scan")
+);
+
+$("manualMode").addEventListener(
+  "click",
+  () => setMode("manual")
+);
+
+$("scanBtn").addEventListener(
+  "click",
+  () => void startScanner()
+);
+
+$("restoreBtn").addEventListener(
+  "click",
+  restoreLastRequest
+);
+
+$("assetNo").addEventListener(
+  "input",
+  fitAssetField
+);
+
+video.addEventListener(
+  "loadedmetadata",
+  updateGuide
+);
+
+video.addEventListener(
+  "resize",
+  updateGuide
+);
+
+window.addEventListener(
+  "resize",
+  updateGuide
+);
+
+function updateNetwork() {
+  $("connectionNote").hidden = navigator.onLine !== false;
+}
+
+window.addEventListener("offline", updateNetwork);
+window.addEventListener("online", updateNetwork);
+
+document.addEventListener("visibilitychange", () => {
+  if (
+    document.hidden &&
+    ["opening", "live"].includes(phase)
+  ) {
+    releaseCamera();
+    phase = "idle";
+
+    refreshUI();
+
+    scanMessage(
+      "Camera released while the page was hidden. " +
+      "Tap Open camera to resume."
+    );
+  }
+});
+
+window.addEventListener("pagehide", () => {
+  releaseCamera();
+  phase = "idle";
+
+  disposeDecoder();
+});
+
+window.addEventListener("pageshow", () => {
+  refreshUI();
+});
+
+window.addEventListener("beforeunload", event => {
+  const hasDraft =
+    rawQrText !== null ||
+    $("assetNo").value.length > 0;
+
+  if (sending || hasDraft) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+
+
+/* -------------------------------------------------------
+   Initial state
+------------------------------------------------------- */
+
+refreshUI();
+updateNetwork();
+
+scanMessage(
+  "Ready. Open the camera to scan one tag."
+);
+
 </script>
+
 </body>
 </html>
