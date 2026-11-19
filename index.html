@@ -73,8 +73,7 @@ button:disabled {
   cursor: default;
 }
 
-button:focus-visible,
-summary:focus-visible {
+button:focus-visible {
   outline: 3px solid #e2a13b;
   outline-offset: 3px;
 }
@@ -263,33 +262,6 @@ textarea {
   margin-bottom: 13px;
 }
 
-details {
-  margin-top: 17px;
-  padding-top: 14px;
-  border-top: 1px solid #e1e7ee;
-}
-
-summary {
-  font-size: 13px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-pre {
-  font: 12px/1.55 ui-monospace, Consolas, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  margin: 12px 0 0;
-}
-
-footer {
-  margin: 19px 0 0;
-  color: #647689;
-  font-size: 11px;
-  line-height: 1.55;
-  text-align: center;
-}
-
 [hidden] {
   display: none !important;
 }
@@ -323,7 +295,8 @@ footer {
   </p>
 
   <div id="connectionNote" hidden role="status">
-    You appear to be offline. Your form will not be submitted.
+    You appear to be offline.
+    Your form will not be submitted.
     Reconnect before pressing Submit.
   </div>
 
@@ -383,8 +356,8 @@ footer {
   </section>
 
   <div id="manualNote" hidden>
-    Use Manual Entry when a QR tag is missing, damaged,
-    or cannot be read.
+    Use Manual Entry when a QR tag is missing,
+    damaged, or cannot be read.
   </div>
 
   <form id="assetForm" novalidate>
@@ -466,45 +439,22 @@ footer {
      role="status"
      aria-live="polite"></p>
 
-  <p class="note">
-    Submission uses your existing Google Sheets service.
-    This version cannot verify that a row was saved.
-    Check the sheet before retrying a request.
-  </p>
+  <!-- Shown only when a request needs recovery or review. -->
+  <div id="recoveryActions" hidden>
 
-  <details id="lastRequestPanel" hidden>
-
-    <summary>Last submitted request - not verified</summary>
-
-    <p class="note">
-      One request is kept in this page's memory until it is
-      refreshed or closed. This is not a server receipt.
-      Restore only after checking Google Sheets to avoid a duplicate.
-    </p>
-
-    <pre id="lastRequestData"></pre>
+    <button id="checkedBtn"
+            class="secondary"
+            type="button">
+      Checked Google Sheets - continue
+    </button>
 
     <button id="restoreBtn"
             class="secondary"
             type="button">
-      Restore last request
+      Restore previous request
     </button>
 
-  </details>
-
-  <details>
-
-    <summary>Camera details</summary>
-
-    <pre id="cameraDetails">The camera has not been opened.</pre>
-
-  </details>
-
-  <footer>
-    Mobile QR v2.1 - 19 Nov 2026<br>
-    Camera images are decoded in the browser;
-    only the form fields are submitted.
-  </footer>
+  </div>
 
   <noscript>
     <p>JavaScript must be enabled to use this page.</p>
@@ -514,15 +464,18 @@ footer {
 
 <script type="module">
 
-// Existing Apps Script endpoint.
+/* -------------------------------------------------------
+   Settings
+------------------------------------------------------- */
+
 const API_URL =
   "https://script.google.com/macros/s/AKfycbwezB2j68Bz65FXjJUSEFZIPJUTtvHp4-UDb3k8apBi9teP886Cd4lEqnDSiKvUbtjC/exec";
 
-// Pinned QR reader version.
 const LIBRARY_URL =
   "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
 
 const RESPONSE_WAIT_MS = 30000;
+const BACKUP_KEY = "fa_last_request_v3";
 
 const $ = id => document.getElementById(id);
 
@@ -530,11 +483,15 @@ const video = $("video");
 const form = $("assetForm");
 
 let currentMode = "scan";
-
-// Camera states: idle | opening | live.
 let phase = "idle";
 
+// Lock the whole form only while preparing a request.
 let sending = false;
+
+// Keep the network request separate from camera/form state.
+let pendingRequest = null;
+let needsReview = false;
+
 let cameraOpening = false;
 let stream = null;
 let generation = 0;
@@ -546,15 +503,14 @@ let decoderPromise = null;
 let decoderEpoch = 0;
 let pendingDecode = Promise.resolve();
 
-// Preserve the exact QR text independently of the displayed field.
+// Preserve the original decoded text independently of the display.
 let rawQrText = null;
 
 let lastRequest = null;
-let cameraInfo = {};
 
 
 /* -------------------------------------------------------
-   Messages and interface
+   Interface
 ------------------------------------------------------- */
 
 function message(text, kind = "") {
@@ -622,20 +578,27 @@ function refreshUI() {
             ? "Scan a different QR"
             : "Open camera / Scan QR";
 
+  // Editing and scanning are available while a POST is pending.
   $("formFields").disabled = sending;
 
-  $("submitBtn").disabled = sending || scanning;
+  // Only the next submission waits for the previous request.
+  $("submitBtn").disabled =
+    sending || scanning || !!pendingRequest || needsReview;
 
   $("submitBtn").textContent =
-    sending ? "Sending request..." : "Submit";
+    sending
+      ? "Preparing request..."
+      : needsReview
+        ? "Check previous request"
+        : pendingRequest
+          ? "Sending previous request..."
+          : "Submit";
+
+  $("recoveryActions").hidden = !needsReview;
+  $("checkedBtn").disabled = sending;
 
   $("restoreBtn").disabled =
     sending || scanning || !lastRequest;
-}
-
-function displayCameraInfo() {
-  $("cameraDetails").textContent =
-    JSON.stringify(cameraInfo, null, 2);
 }
 
 function fitAssetField() {
@@ -676,7 +639,6 @@ function releaseCamera() {
 
   video.pause();
   video.srcObject = null;
-
   $("viewport").hidden = true;
 }
 
@@ -691,7 +653,10 @@ function setMode(mode) {
   clearAsset();
 
   scanMessage("Ready. Open the camera to scan one tag.");
-  message("");
+
+  if (!pendingRequest && !needsReview) {
+    message("");
+  }
 
   refreshUI();
 
@@ -753,6 +718,7 @@ async function loadDecoder() {
 
   try {
     await decoderPromise;
+
   } catch (_) {
     throw new Error(
       "Cannot load the QR reader. Check your connection " +
@@ -788,7 +754,7 @@ function friendlyCameraError(error) {
 
 
 /* -------------------------------------------------------
-   Scan frame and image processing region
+   Scan area
 ------------------------------------------------------- */
 
 function updateGuide() {
@@ -837,35 +803,17 @@ function scanRegion(width, height, full, limit) {
   };
 }
 
-
-/* -------------------------------------------------------
-   Optional autofocus
-------------------------------------------------------- */
-
 async function tuneFocus(track, token) {
-  let caps = {};
-
   try {
-    caps = track.getCapabilities?.() || {};
-  } catch (_) {}
+    const caps = track.getCapabilities?.() || {};
 
-  const modes = Array.isArray(caps.focusMode)
-    ? caps.focusMode
-    : [];
+    if (
+      token !== generation ||
+      !caps.focusMode?.includes("continuous")
+    ) {
+      return;
+    }
 
-  if (token !== generation) return;
-
-  cameraInfo.focusControl = modes.length
-    ? modes.join(", ")
-    : "Not exposed by this browser";
-
-  cameraInfo.focusRequest = "Using browser default";
-
-  displayCameraInfo();
-
-  if (!modes.includes("continuous")) return;
-
-  try {
     const existing = track.getConstraints?.() || {};
 
     await track.applyConstraints({
@@ -876,22 +824,9 @@ async function tuneFocus(track, token) {
       ]
     });
 
-    if (token !== generation) return;
-
-    cameraInfo.focusRequest =
-      "Continuous focus requested";
-
   } catch (_) {
-    if (token !== generation) return;
-
-    cameraInfo.focusRequest =
-      "Focus request not accepted; using browser default";
+    // Unsupported focus controls must not interrupt scanning.
   }
-
-  cameraInfo.focusSetting =
-    track.getSettings?.().focusMode || "Not exposed";
-
-  displayCameraInfo();
 }
 
 
@@ -915,8 +850,8 @@ function acceptQr(text, token) {
     return;
   }
 
-  // Preserve the exact decoded string.
-  // Do not trim, split, change case, parse, or convert to a number.
+  // Do not trim, split, parse, or convert the decoded text.
+  // Keep the original string even if the textarea normalizes line endings.
   rawQrText = text;
 
   $("assetNo").value = text;
@@ -926,9 +861,6 @@ function acceptQr(text, token) {
 
   releaseCamera();
   phase = "idle";
-
-  cameraInfo.result = "QR decoded";
-  displayCameraInfo();
 
   scanMessage(
     "QR read. Check Asset No., complete the fields, then press Submit.",
@@ -944,7 +876,7 @@ function acceptQr(text, token) {
 
 
 /* -------------------------------------------------------
-   Start live camera scanning
+   Start live scanner
 ------------------------------------------------------- */
 
 async function startScanner() {
@@ -1034,7 +966,6 @@ async function startScanner() {
     stream = acquired;
 
     $("viewport").hidden = false;
-
     video.srcObject = stream;
 
     await video.play();
@@ -1043,31 +974,6 @@ async function startScanner() {
 
     const track = stream.getVideoTracks()[0];
     const settings = track.getSettings?.() || {};
-
-    cameraInfo = {
-      camera: track.label || "Not exposed",
-
-      facingMode: settings.facingMode || "Not exposed",
-
-      sourcePixels:
-        `${video.videoWidth} x ${video.videoHeight}`,
-
-      decoder: "qr-scanner 1.4.2",
-
-      engine:
-        typeof Worker !== "undefined" &&
-        engine instanceof Worker
-          ? "Software / worker"
-          : "Browser native",
-
-      scanArea:
-        "Center (up to 960 px) + full image every third attempt " +
-        "(up to 1280 px)",
-
-      result: "Scanning"
-    };
-
-    displayCameraInfo();
 
     // Focus tuning must not delay the first decoding attempt.
     void tuneFocus(track, token);
@@ -1164,13 +1070,6 @@ async function startScanner() {
         typeof result.data === "string" &&
         result.data.length
       ) {
-        cameraInfo.readAfterSeconds = Number(
-          ((performance.now() - began) / 1000).toFixed(2)
-        );
-
-        cameraInfo.timingNote =
-          "Includes aiming and focusing; not a speed benchmark.";
-
         acceptQr(result.data, token);
         return;
       }
@@ -1189,7 +1088,6 @@ async function startScanner() {
         phase = "idle";
 
         disposeDecoder();
-
         refreshUI();
 
         scanMessage(
@@ -1208,7 +1106,7 @@ async function startScanner() {
         );
       }
 
-      // Process frames sequentially, without overlapping reads.
+      // Sequential decoding: do not overlap image reads.
       scanTimer = setTimeout(tick, 90);
     }
 
@@ -1260,7 +1158,6 @@ function resetForNextAsset() {
   phase = "idle";
 
   form.reset();
-
   clearAsset();
 
   scanMessage(
@@ -1268,16 +1165,69 @@ function resetForNextAsset() {
   );
 }
 
-function rememberRequest(data) {
-  lastRequest = {
-    mode: currentMode,
-    data: { ...data }
-  };
+function hasDraft() {
+  return rawQrText !== null ||
+    [
+      "assetNo",
+      "status",
+      "condition",
+      "location",
+      "owner",
+      "remark"
+    ].some(id => $(id).value.length > 0);
+}
 
-  $("lastRequestData").textContent =
-    JSON.stringify(data, null, 2);
 
-  $("lastRequestPanel").hidden = false;
+/* -------------------------------------------------------
+   Recovery copy: one request in this tab
+------------------------------------------------------- */
+
+function storeLastRequest() {
+  try {
+    sessionStorage.setItem(
+      BACKUP_KEY,
+      JSON.stringify(lastRequest)
+    );
+
+  } catch (_) {
+    // Keep the memory copy if browser storage is unavailable.
+  }
+}
+
+function cleanupRequest(job) {
+  if (!job) return;
+
+  clearTimeout(job.timer);
+  clearTimeout(job.prepareTimer);
+
+  job.iframe.onload = null;
+  job.iframe.remove();
+  job.postForm?.remove();
+}
+
+function checkPreviousRequest() {
+  if (sending || !needsReview) return;
+
+  if (!confirm(
+    "Continue only after checking the previous entry in Google Sheets. " +
+    "No request will be sent again automatically. Continue?"
+  )) {
+    return;
+  }
+
+  cleanupRequest(pendingRequest);
+
+  pendingRequest = null;
+  needsReview = false;
+
+  if (lastRequest) {
+    lastRequest.state = "checked";
+  }
+
+  storeLastRequest();
+
+  message("Ready. Your current form has been kept.");
+  refreshUI();
 }
 
 function restoreLastRequest() {
@@ -1289,13 +1239,27 @@ function restoreLastRequest() {
     return;
   }
 
-  const confirmed = window.confirm(
-    "Check Google Sheets first to avoid a duplicate. " +
-    "Restore this request into the form? " +
-    "Nothing will be submitted automatically."
-  );
+  if (!confirm(
+    "Check Google Sheets first. The previous request may already be saved. " +
+    "Restore it only if it is missing. This does not submit it again."
+  )) {
+    return;
+  }
 
-  if (!confirmed) return;
+  if (
+    hasDraft() &&
+    !confirm(
+      "The current form contains another draft. " +
+      "Replace that draft with the previous request?"
+    )
+  ) {
+    return;
+  }
+
+  cleanupRequest(pendingRequest);
+
+  pendingRequest = null;
+  needsReview = false;
 
   releaseCamera();
 
@@ -1306,8 +1270,15 @@ function restoreLastRequest() {
       ? lastRequest.data.assetNo
       : null;
 
-  for (const [key, value] of Object.entries(lastRequest.data)) {
-    $(key).value = value;
+  for (const key of [
+    "assetNo",
+    "status",
+    "condition",
+    "location",
+    "owner",
+    "remark"
+  ]) {
+    $(key).value = lastRequest.data[key];
   }
 
   $("assetNo").classList.toggle(
@@ -1315,28 +1286,87 @@ function restoreLastRequest() {
     rawQrText !== null
   );
 
+  lastRequest.state = "restored";
+  storeLastRequest();
+
   fitAssetField();
-  refreshUI();
 
   scanMessage(
     rawQrText !== null
-      ? "Previous decoded text restored; no new scan was performed."
+      ? "Previous QR text restored."
       : ""
   );
 
   message(
-    "Request restored only. Confirm it is missing from " +
-    "Google Sheets before submitting again.",
+    "Restored, not sent. Check the sheet before submitting again.",
     "warning"
   );
+
+  refreshUI();
 }
 
 
 /* -------------------------------------------------------
-   Submit using the existing Apps Script contract
+   Response handling
 ------------------------------------------------------- */
 
-async function sendExistingForm(data) {
+function finishTransport(job) {
+  if (
+    pendingRequest !== job ||
+    !job.posted
+  ) {
+    return;
+  }
+
+  cleanupRequest(job);
+
+  pendingRequest = null;
+  needsReview = false;
+
+  lastRequest.state = "response-observed";
+  storeLastRequest();
+
+  // An iframe load is not proof of a saved Google Sheets row.
+  // Never reset the form here: it may contain the NEXT asset.
+  message("Ready for the next submission.");
+
+  refreshUI();
+}
+
+function timeoutTransport(job) {
+  if (pendingRequest !== job) return;
+
+  needsReview = true;
+
+  lastRequest.state = "unknown";
+  storeLastRequest();
+
+  message(
+    "Response delayed. Check Google Sheets before continuing or retrying. " +
+    "Your current form has been kept.",
+    "warning"
+  );
+
+  refreshUI();
+
+  // Keep the iframe attached so a late response is not cancelled.
+  // Do not automatically retry or send another request.
+}
+
+
+/* -------------------------------------------------------
+   Submit without blocking the next scan
+------------------------------------------------------- */
+
+async function beginSubmission(data) {
+  sending = true;
+
+  releaseCamera();
+  phase = "idle";
+
+  refreshUI();
+  message("Preparing request...");
+
   const iframe = document.createElement("iframe");
 
   iframe.name =
@@ -1349,23 +1379,31 @@ async function sendExistingForm(data) {
   iframe.hidden = true;
   iframe.src = "about:blank";
 
-  let posted = false;
-  let postForm = null;
+  const job = {
+    iframe,
+    postForm: null,
+    timer: null,
+    prepareTimer: null,
+    posted: false
+  };
+
+  const previousRequest = lastRequest;
 
   try {
+    // Prepare the target frame before submitting.
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      job.prepareTimer = setTimeout(() => {
         iframe.onload = null;
 
         reject(
           new Error(
-            "Cannot prepare submission. Your form was not cleared."
+            "Cannot prepare the request. Your form has been kept."
           )
         );
       }, 5000);
 
       iframe.onload = () => {
-        clearTimeout(timer);
+        clearTimeout(job.prepareTimer);
         iframe.onload = null;
         resolve();
       };
@@ -1374,13 +1412,11 @@ async function sendExistingForm(data) {
     });
 
     if (navigator.onLine === false) {
-      throw new Error(
-        "You appear to be offline. No request was sent; " +
-        "your form has been kept."
-      );
+      throw new Error("Offline. No request was sent.");
     }
 
-    postForm = document.createElement("form");
+    const postForm = document.createElement("form");
+    job.postForm = postForm;
 
     postForm.method = "POST";
     postForm.action = API_URL;
@@ -1395,91 +1431,79 @@ async function sendExistingForm(data) {
     payload.value = JSON.stringify(data);
 
     postForm.appendChild(payload);
-
     document.body.appendChild(postForm);
 
-    const outcome = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        iframe.onload = null;
-        resolve("timeout");
-      }, RESPONSE_WAIT_MS);
+    // Copy the request before clearing the visible form.
+    lastRequest = {
+      mode: currentMode,
+      data: { ...data },
+      state: "pending"
+    };
 
-      iframe.onload = () => {
-        // Ignore the initial blank document.
-        try {
-          if (
-            iframe.contentWindow.location.href === "about:blank"
-          ) {
-            return;
-          }
-        } catch (_) {}
+    storeLastRequest();
 
-        clearTimeout(timer);
+    pendingRequest = job;
 
-        iframe.onload = null;
-
-        resolve("navigation-ended");
-      };
+    iframe.onload = () => {
+      if (
+        !job.posted ||
+        pendingRequest !== job
+      ) {
+        return;
+      }
 
       try {
-        HTMLFormElement.prototype.submit.call(postForm);
+        if (
+          iframe.contentWindow.location.href === "about:blank"
+        ) {
+          return;
+        }
+      } catch (_) {}
 
-        posted = true;
+      finishTransport(job);
+    };
 
-        rememberRequest(data);
+    HTMLFormElement.prototype.submit.call(postForm);
 
-      } catch (error) {
-        clearTimeout(timer);
+    job.posted = true;
 
-        iframe.onload = null;
-
-        reject(error);
-      }
-    });
-
-    if (outcome === "navigation-ended") {
-      // A cross-origin iframe load is NOT proof that a row was saved.
-      resetForNextAsset();
-
-      message(
-        "Submission attempted; saving is NOT verified. " +
-        "The form is ready for the next asset. " +
-        "Check Google Sheets, especially before retrying. " +
-        "The last request can be restored below.",
-        "warning"
-      );
-
-    } else {
-      message(
-        "No response was observed. Your form has been kept, " +
-        "but the request may still have been saved. " +
-        "Check Google Sheets before retrying to avoid duplicates.",
-        "warning"
-      );
-    }
-
-    // Do not automatically retry a timed-out request.
-    if (outcome === "timeout") {
-      setTimeout(() => iframe.remove(), 120000);
-    } else {
-      iframe.remove();
-    }
-
-  } catch (error) {
-    iframe.remove();
-
-    message(
-      posted
-        ? "Submission status is unknown. Check Google Sheets " +
-          "before retrying. Your form has been kept."
-        : String(error?.message || error),
-      "error"
+    job.timer = setTimeout(
+      () => timeoutTransport(job),
+      RESPONSE_WAIT_MS
     );
 
-  } finally {
-    if (postForm) {
-      postForm.remove();
+    // The next asset can be entered immediately after dispatch.
+    // Keep the hidden form and iframe until the response.
+    resetForNextAsset();
+
+    message(
+      "Request started. You can scan the next asset. Keep this page open."
+    );
+
+  } catch (error) {
+    if (!job.posted) {
+      cleanupRequest(job);
+
+      if (pendingRequest === job) {
+        pendingRequest = null;
+      }
+
+      lastRequest = previousRequest;
+      storeLastRequest();
+
+      message(
+        String(error?.message || error),
+        "error"
+      );
+
+    } else {
+      timeoutTransport(job);
     }
+
+  } finally {
+    // Release the camera/form while the request is still in progress.
+    sending = false;
+    refreshUI();
   }
 }
 
@@ -1488,13 +1512,23 @@ async function sendExistingForm(data) {
    Submit button
 ------------------------------------------------------- */
 
-form.addEventListener("submit", async event => {
+form.addEventListener("submit", event => {
   event.preventDefault();
 
   if (
     sending ||
     phase !== "idle"
   ) {
+    return;
+  }
+
+  if (pendingRequest || needsReview) {
+    message(
+      "The previous request is still pending. " +
+      "You can keep editing this asset.",
+      "warning"
+    );
+
     return;
   }
 
@@ -1520,8 +1554,7 @@ form.addEventListener("submit", async event => {
 
   if (navigator.onLine === false) {
     message(
-      "You appear to be offline. Reconnect before submitting. " +
-      "Your form has been kept.",
+      "Offline. Reconnect before submitting. Your form has been kept.",
       "error"
     );
 
@@ -1532,32 +1565,15 @@ form.addEventListener("submit", async event => {
     lastRequest &&
     JSON.stringify(lastRequest.data) === JSON.stringify(data)
   ) {
-    const confirmed = window.confirm(
-      "This matches your last submitted request. " +
-      "Check Google Sheets first. Send again ONLY if you " +
-      "confirmed that the previous row was not saved. Continue?"
-    );
-
-    if (!confirmed) return;
+    if (!confirm(
+      "This matches your last request. Send again only if you checked " +
+      "Google Sheets and the previous entry is missing. Continue?"
+    )) {
+      return;
+    }
   }
 
-  sending = true;
-
-  releaseCamera();
-
-  refreshUI();
-
-  message(
-    "Sending one request. Keep this page open until the status changes."
-  );
-
-  try {
-    await sendExistingForm(data);
-
-  } finally {
-    sending = false;
-    refreshUI();
-  }
+  void beginSubmission(data);
 });
 
 
@@ -1583,6 +1599,11 @@ $("scanBtn").addEventListener(
 $("restoreBtn").addEventListener(
   "click",
   restoreLastRequest
+);
+
+$("checkedBtn").addEventListener(
+  "click",
+  checkPreviousRequest
 );
 
 $("assetNo").addEventListener(
@@ -1634,22 +1655,79 @@ window.addEventListener("pagehide", () => {
   phase = "idle";
 
   disposeDecoder();
+
+  if (pendingRequest && lastRequest) {
+    lastRequest.state = "unknown";
+    storeLastRequest();
+  }
 });
 
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", event => {
+  if (event.persisted && pendingRequest) {
+    needsReview = true;
+
+    message(
+      "Check the previous entry in Google Sheets before continuing.",
+      "warning"
+    );
+  }
+
   refreshUI();
 });
 
 window.addEventListener("beforeunload", event => {
-  const hasDraft =
-    rawQrText !== null ||
-    $("assetNo").value.length > 0;
-
-  if (sending || hasDraft) {
+  if (
+    sending ||
+    pendingRequest ||
+    needsReview ||
+    hasDraft()
+  ) {
     event.preventDefault();
     event.returnValue = "";
   }
 });
+
+
+/* -------------------------------------------------------
+   Recover an interrupted request for review only
+------------------------------------------------------- */
+
+try {
+  const saved = JSON.parse(
+    sessionStorage.getItem(BACKUP_KEY) || "null"
+  );
+
+  const keys = [
+    "assetNo",
+    "status",
+    "condition",
+    "location",
+    "owner",
+    "remark"
+  ];
+
+  if (
+    saved &&
+    ["scan", "manual"].includes(saved.mode) &&
+    keys.every(key => typeof saved.data?.[key] === "string")
+  ) {
+    lastRequest = saved;
+
+    needsReview = [
+      "pending",
+      "unknown"
+    ].includes(saved.state);
+
+    if (needsReview) {
+      message(
+        "A previous request was interrupted. " +
+        "Check Google Sheets before continuing.",
+        "warning"
+      );
+    }
+  }
+
+} catch (_) {}
 
 
 /* -------------------------------------------------------
