@@ -48,6 +48,11 @@ button:disabled {
   cursor: default;
 }
 
+button:focus-visible {
+  outline: 3px solid #e0a13b;
+  outline-offset: 2px;
+}
+
 .modeButtons {
   display: flex;
   gap: 8px;
@@ -84,14 +89,13 @@ fieldset {
   min-width: 0;
 }
 
-label {
+label.fieldLabel {
   display: block;
   font-weight: bold;
   margin: 18px 0 7px;
 }
 
-input,
-select,
+input[type="text"],
 textarea {
   width: 100%;
   padding: 13px;
@@ -176,8 +180,145 @@ textarea {
   color: #1c714b;
 }
 
+/* Each group allows only one selected value. */
+
+.choiceGroup {
+  margin-top: 18px;
+}
+
+.choiceGroup legend {
+  font-weight: bold;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choice {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+  left: 8px;
+  top: 50%;
+}
+
+.choice span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 48px;
+  padding: 12px 8px;
+  border: 1px solid #bcc9d5;
+  border-radius: 9px;
+  background: white;
+  font-size: 14px;
+  text-align: center;
+}
+
+.choice span::after {
+  content: "";
+  width: 12px;
+  flex: 0 0 12px;
+}
+
+.choice input:checked + span {
+  background: #1769aa;
+  border-color: #1769aa;
+  color: white;
+}
+
+.choice input:checked + span::after {
+  content: "\2713";
+}
+
+.choice input:focus-visible + span {
+  outline: 3px solid #e0a13b;
+  outline-offset: 2px;
+}
+
+.choice input:disabled + span {
+  opacity: .55;
+  cursor: default;
+}
+
+.choiceGroup.invalid .choices {
+  outline: 2px solid #a82824;
+  outline-offset: 3px;
+  border-radius: 9px;
+}
+
+/* Recent names, newest first. */
+
+#ownerHistory {
+  margin-top: 9px;
+}
+
+.historyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.historyHeader span {
+  color: #536779;
+  font-size: 12px;
+}
+
+#clearOwners {
+  min-height: 36px;
+  padding: 6px 10px;
+  background: transparent;
+  color: #536779;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+#ownerSuggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.ownerChip {
+  min-height: 42px;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #bed3e5;
+  background: #edf5fc;
+  color: #1769aa;
+  border-radius: 20px;
+  font-size: 14px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 [hidden] {
   display: none !important;
+}
+
+@media (max-width: 360px) {
+  body {
+    padding: 10px;
+  }
+
+  .container {
+    padding: 16px;
+  }
 }
 </style>
 </head>
@@ -240,7 +381,9 @@ textarea {
 
     <fieldset id="formFields" disabled>
 
-      <label for="assetNo">Asset No. *</label>
+      <label class="fieldLabel" for="assetNo">
+        Asset No. *
+      </label>
 
       <textarea id="assetNo"
                 rows="1"
@@ -251,42 +394,48 @@ textarea {
                 spellcheck="false"
                 placeholder="Please scan QR"></textarea>
 
-      <label for="status">Status *</label>
+      <fieldset id="statusGroup" class="choiceGroup">
+        <legend>Status *</legend>
+        <div id="statusChoices" class="choices"></div>
+      </fieldset>
 
-      <select id="status" required>
-        <option value="">-- Select Status --</option>
-        <option value="Found">Found</option>
-        <option value="Not Found">Not Found</option>
-      </select>
+      <fieldset id="conditionGroup" class="choiceGroup">
+        <legend>Condition *</legend>
+        <div id="conditionChoices" class="choices"></div>
+      </fieldset>
 
-      <label for="condition">Condition *</label>
+      <fieldset id="locationGroup" class="choiceGroup">
+        <legend>Location *</legend>
+        <div id="locationChoices" class="choices"></div>
+      </fieldset>
 
-      <select id="condition" required>
-        <option value="">-- Select Condition --</option>
-        <option value="Good">Good</option>
-        <option value="Damaged">Damaged</option>
-      </select>
-
-      <label for="location">Location *</label>
-
-      <select id="location" required>
-        <option value="">-- Select Location --</option>
-        <option value="HQ-OFFICE">HQ-OFFICE</option>
-        <option value="WH-2">WH-2</option>
-        <option value="WH-3">WH-3</option>
-        <option value="WH-4">WH-4</option>
-        <option value="SAMRONG">SAMRONG</option>
-        <option value="MP-M">MP-M</option>
-        <option value="MP-I">MP-I</option>
-      </select>
-
-      <label for="owner">Owner</label>
+      <label class="fieldLabel" for="owner">
+        Owner
+      </label>
 
       <input id="owner"
              type="text"
+             autocomplete="off"
              placeholder="Responsible person (optional)">
 
-      <label for="remark">Remark</label>
+      <div id="ownerHistory" hidden>
+
+        <div class="historyHeader">
+          <span>Recent owners - newest first</span>
+
+          <button id="clearOwners" type="button">
+            Clear
+          </button>
+        </div>
+
+        <div id="ownerSuggestions"
+             aria-label="Recent Owner names"></div>
+
+      </div>
+
+      <label class="fieldLabel" for="remark">
+        Remark
+      </label>
 
       <textarea id="remark"
                 rows="3"
@@ -309,10 +458,6 @@ textarea {
 </div>
 
 <script type="module">
-
-/* =====================================================
-   SETTINGS
-===================================================== */
 
 const API_URL =
   "https://script.google.com/macros/s/AKfycbwezB2j68Bz65FXjJUSEFZIPJUTtvHp4-UDb3k8apBi9teP886Cd4lEqnDSiKvUbtjC/exec";
@@ -349,6 +494,205 @@ let decoderPromise = null;
 let pendingDecode = Promise.resolve();
 
 let requestNumber = 0;
+
+const OWNER_HISTORY_KEY = "FA_PhysicalChecking.ownerHistory.v1";
+const MAX_RECENT_OWNERS = 5;
+
+let ownerHistory = loadOwnerHistory();
+
+
+/* =====================================================
+   SINGLE-CHOICE BUTTONS
+===================================================== */
+
+const OPTIONS = {
+  status: [
+    "Found",
+    "Not Found"
+  ],
+
+  condition: [
+    "Good",
+    "Damaged"
+  ],
+
+  location: [
+    "HQ-OFFICE",
+    "WH-2",
+    "WH-3",
+    "WH-4",
+    "SAMRONG",
+    "MP-M",
+    "MP-I"
+  ]
+};
+
+function buildChoices() {
+  for (const [name, values] of Object.entries(OPTIONS)) {
+    const container = $(name + "Choices");
+
+    values.forEach((value, index) => {
+      const label = document.createElement("label");
+      label.className = "choice";
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = name;
+      input.id = name + "_" + index;
+      input.value = value;
+      input.required = true;
+
+      const text = document.createElement("span");
+      text.textContent = value;
+
+      label.append(input, text);
+      container.appendChild(label);
+
+      input.addEventListener("change", () => {
+        $(name + "Group").classList.remove("invalid");
+
+        if ($("message").dataset.kind === "error") {
+          message("");
+        }
+      });
+    });
+  }
+}
+
+function selectedValue(name) {
+  return form.querySelector(
+    'input[name="' + name + '"]:checked'
+  )?.value || "";
+}
+
+
+/* =====================================================
+   RECENT OWNER NAMES
+
+   Stored in this browser only.
+   No extra API request.
+===================================================== */
+
+function loadOwnerHistory() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(OWNER_HISTORY_KEY) || "[]"
+    );
+
+    if (!Array.isArray(saved)) return [];
+
+    const names = [];
+
+    for (const value of saved) {
+      if (typeof value !== "string") continue;
+
+      const name = value.trim();
+
+      if (
+        name &&
+        !names.some(
+          item => item.toLowerCase() === name.toLowerCase()
+        )
+      ) {
+        names.push(name);
+      }
+
+      if (names.length === MAX_RECENT_OWNERS) break;
+    }
+
+    return names;
+
+  } catch (_) {
+    return [];
+  }
+}
+
+function rememberOwner(value) {
+  const name = value.trim();
+
+  if (!name) return;
+
+  ownerHistory = [
+    name,
+    ...ownerHistory.filter(
+      item => item.toLowerCase() !== name.toLowerCase()
+    )
+  ].slice(0, MAX_RECENT_OWNERS);
+
+  try {
+    localStorage.setItem(
+      OWNER_HISTORY_KEY,
+      JSON.stringify(ownerHistory)
+    );
+
+  } catch (_) {
+    // Still suggest names in this open page if storage is blocked.
+  }
+}
+
+function renderOwnerHistory() {
+  const query = $("owner").value.trim().toLowerCase();
+
+  const matches = ownerHistory.filter(
+    name => name.toLowerCase().includes(query)
+  );
+
+  $("ownerHistory").hidden = matches.length === 0;
+
+  $("ownerSuggestions").replaceChildren();
+
+  for (const name of matches) {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.className = "ownerChip";
+    button.textContent = name;
+
+    button.setAttribute(
+      "aria-label",
+      "Use Owner: " + name
+    );
+
+    button.addEventListener("click", () => {
+      if (sending) return;
+
+      $("owner").value = name;
+      renderOwnerHistory();
+    });
+
+    $("ownerSuggestions").appendChild(button);
+  }
+}
+
+$("owner").addEventListener(
+  "input",
+  renderOwnerHistory
+);
+
+$("owner").addEventListener(
+  "focus",
+  renderOwnerHistory
+);
+
+$("clearOwners").addEventListener("click", () => {
+  if (
+    sending ||
+    !confirm(
+      "Clear recent Owner names on this browser? " +
+      "Saved Google Sheets records will not be changed."
+    )
+  ) {
+    return;
+  }
+
+  ownerHistory = [];
+
+  try {
+    localStorage.removeItem(OWNER_HISTORY_KEY);
+  } catch (_) {}
+
+  renderOwnerHistory();
+});
 
 
 /* =====================================================
@@ -479,6 +823,7 @@ async function loadDecoder() {
     decoderPromise = (async () => {
       QrScanner = (await import(LIBRARY_URL)).default;
       engine = await QrScanner.createQrEngine();
+
     })().catch(() => {
       decoderPromise = null;
 
@@ -870,13 +1215,7 @@ async function startScanner() {
 
 
 /* =====================================================
-   ORIGINAL SUBMISSION METHOD
-
-   Hidden form POST with one field named "payload".
-   No waiting for a server response.
-
-   Each request has a separate hidden target so a new
-   request does not reuse a frame that is still loading.
+   SUBMIT USING THE EXISTING API
 ===================================================== */
 
 function postData(data) {
@@ -928,6 +1267,7 @@ function postData(data) {
       ) {
         return;
       }
+
     } catch (_) {}
 
     // Clean up only.
@@ -953,7 +1293,7 @@ function postData(data) {
 
 
 /* =====================================================
-   SUBMIT + ORIGINAL TWO-SECOND RESET
+   SUBMIT + TWO-SECOND FORM RESET
 ===================================================== */
 
 form.addEventListener("submit", event => {
@@ -972,9 +1312,9 @@ form.addEventListener("submit", event => {
         ? rawQrText
         : $("assetNo").value,
 
-    status: $("status").value,
-    condition: $("condition").value,
-    location: $("location").value,
+    status: selectedValue("status"),
+    condition: selectedValue("condition"),
+    location: selectedValue("location"),
     owner: $("owner").value,
     remark: $("remark").value
   };
@@ -989,6 +1329,25 @@ form.addEventListener("submit", event => {
     );
 
     return;
+  }
+
+  for (const [name, title] of [
+    ["status", "Status"],
+    ["condition", "Condition"],
+    ["location", "Location"]
+  ]) {
+    if (!data[name]) {
+      $(name + "Group").classList.add("invalid");
+
+      message(
+        "Please select " + title + ".",
+        "error"
+      );
+
+      $(name + "Group").querySelector("input").focus();
+
+      return;
+    }
   }
 
   if (!form.reportValidity()) return;
@@ -1012,6 +1371,7 @@ form.addEventListener("submit", event => {
 
   try {
     postData(data);
+    rememberOwner(data.owner);
 
   } catch (_) {
     sending = false;
@@ -1030,6 +1390,12 @@ form.addEventListener("submit", event => {
   setTimeout(() => {
     form.reset();
     clearAsset();
+
+    for (const name of Object.keys(OPTIONS)) {
+      $(name + "Group").classList.remove("invalid");
+    }
+
+    renderOwnerHistory();
 
     sending = false;
 
@@ -1119,6 +1485,13 @@ window.addEventListener("beforeunload", event => {
   }
 });
 
+
+/* =====================================================
+   INITIAL STATE
+===================================================== */
+
+buildChoices();
+renderOwnerHistory();
 refreshUI();
 
 </script>
